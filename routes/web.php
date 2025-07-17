@@ -41,6 +41,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
 // Default route (homepage redirect to login)
 Route::get('/', function () {
+    return view('welcome');
     return view('auth.login');
 });
 
