@@ -17,6 +17,24 @@ use Illuminate\Support\Facades\Http;
 class BookingController extends Controller
 {
     /**
+     * Generate a QR Code for booking.
+     * 
+     * @return array QR code data including value and file path
+     */
+    public function generateQRCode()
+    {
+        $qrCodeValue = Str::uuid();
+        $qrCodeService = new \App\Services\QRCodeService();
+        $fileName = $qrCodeService->generateForBooking($qrCodeValue);
+        $qrCodePath = 'qr-codes/' . $fileName;
+
+        return [
+            'qrCodeValue' => $qrCodeValue,
+            'qrCodePath' => $qrCodePath
+        ];
+    }
+    
+    /**
      * Menampilkan form booking untuk pengguna umum.
      */
     public function create()
@@ -65,11 +83,11 @@ class BookingController extends Controller
             ], 400);
         }
 
-        // Generate QR Code
+        // Generate QR Code using service
         $qrCodeValue = Str::uuid();
-        $qrCodeImage = QrCode::size(200)->generate($qrCodeValue);
-        $qrCodePath = 'qrcodes/' . $qrCodeValue . '.svg';
-        Storage::put('public/' . $qrCodePath, $qrCodeImage);
+        $qrCodeService = new \App\Services\QRCodeService();
+        $fileName = $qrCodeService->generateForBooking($qrCodeValue);
+        $qrCodePath = 'qr-codes/' . $fileName;
 
         // Waktu booking
         $intendedEntryTime = Carbon::now()->addMinutes(5);
@@ -221,7 +239,7 @@ class BookingController extends Controller
     {
         $booking = Booking::findOrFail($id);
         
-        if ($booking->status !== 'pending') {
+        if (!in_array($booking->status, ['pending', 'confirmed'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Booking tidak valid untuk check-in'
@@ -229,7 +247,7 @@ class BookingController extends Controller
         }
 
         $booking->update([
-            'status' => 'checked_in',
+            'status' => 'active', // Consistent with AdminController's scanEntry
             'actual_entry_time' => now()
         ]);
 
@@ -257,7 +275,7 @@ class BookingController extends Controller
     {
         $booking = Booking::findOrFail($id);
         
-        if ($booking->status !== 'checked_in') {
+        if ($booking->status !== 'checked_in' && $booking->status !== 'active') {
             return response()->json([
                 'success' => false,
                 'message' => 'Status booking tidak valid untuk check-out'

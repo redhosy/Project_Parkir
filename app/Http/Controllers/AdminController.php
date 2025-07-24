@@ -22,18 +22,54 @@ class AdminController extends Controller
         $occupiedSlotsCount = ParkingSlot::where('status', 'occupied')->count();
         $totalSlotsCount = ParkingSlot::count();
 
-        $recentBookings = Booking::with('parkingSlot')
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
         return view('admin.dashboard', compact(
             'availableSlotsCount',
             'bookedSlotsCount',
             'occupiedSlotsCount',
-            'totalSlotsCount',
-            'recentBookings'
+            'totalSlotsCount'
         ));
+    }
+    
+    /**
+     * Menampilkan halaman validasi QR code.
+     */
+    public function validasiQr()
+    {
+        return view('admin.validasi-qr');
+    }
+    
+    /**
+     * Menampilkan halaman riwayat parkir.
+     */
+    public function riwayatParkir(Request $request)
+    {
+        $query = Booking::with('parkingSlot')->orderBy('created_at', 'desc');
+        
+        // Apply search filter
+        if ($request->has('search')) {
+            $search = $request->input('search');
+            $query->where(function($q) use ($search) {
+                $q->where('id', 'like', "%{$search}%")
+                  ->orWhere('nama_pemesan', 'like', "%{$search}%")
+                  ->orWhere('license_plate', 'like', "%{$search}%")
+                  ->orWhere('merk_kendaraan', 'like', "%{$search}%");
+            });
+        }
+        
+        // Apply status filter
+        if ($request->has('status') && !empty($request->input('status'))) {
+            $query->where('status', $request->input('status'));
+        }
+        
+        // Apply date filter
+        if ($request->has('date') && !empty($request->input('date'))) {
+            $date = $request->input('date');
+            $query->whereDate('created_at', $date);
+        }
+        
+        $bookings = $query->paginate(15);
+        
+        return view('admin.riwayat-parkir', compact('bookings'));
     }
 
     /**
@@ -49,19 +85,15 @@ class AdminController extends Controller
             return response()->json(['message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
         }
 
-        $booking = Booking::where('qr_code', $request->qr_code)->first();
-
-        if (!$booking) {
-            return response()->json(['message' => 'QR Code tidak valid atau booking tidak ditemukan.'], 404);
+        // Use QRCodeService for validation
+        $qrCodeService = new \App\Services\QRCodeService();
+        $validationResult = $qrCodeService->validateEntryQRCode($request->qr_code);
+        
+        if (!$validationResult['valid']) {
+            return response()->json(['message' => $validationResult['message']], 400);
         }
-
-        if ($booking->check_in_count >= 1) {
-            return response()->json(['message' => 'QR Code ini sudah digunakan untuk masuk.'], 400);
-        }
-
-        if ($booking->status !== 'pending' && $booking->status !== 'confirmed') {
-            return response()->json(['message' => 'Booking belum dikonfirmasi atau tidak aktif/sudah selesai.'], 400);
-        }
+        
+        $booking = $validationResult['booking'];
 
         $parkingSlot = $booking->parkingSlot;
 
@@ -113,40 +145,28 @@ class AdminController extends Controller
             return response()->json(['message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
         }
 
-        $booking = Booking::where('qr_code', $request->qr_code)->first();
-
-        if (!$booking) {
-            return response()->json(['message' => 'QR Code tidak valid atau booking tidak ditemukan.'], 404);
+        // Use QRCodeService for validation
+        $qrCodeService = new \App\Services\QRCodeService();
+        $validationResult = $qrCodeService->validateExitQRCode($request->qr_code);
+        
+        if (!$validationResult['valid']) {
+            return response()->json(['message' => $validationResult['message']], 400);
         }
-
-        if ($booking->check_in_count === 0) {
-            return response()->json(['message' => 'Kendaraan belum masuk ke parkiran dengan QR Code ini.'], 400);
-        }
-        if ($booking->check_out_count >= 1) {
-            return response()->json(['message' => 'QR Code ini sudah digunakan untuk keluar.'], 400);
-        }
-
-        if ($booking->status !== 'active') {
-            return response()->json(['message' => 'Booking tidak dalam status aktif (sudah keluar atau dibatalkan).'], 400);
-        }
+        
+        $booking = $validationResult['booking'];
 
         $parkingSlot = $booking->parkingSlot;
 
         $entryTime = Carbon::parse($booking->entry_time);
         $exitTime = Carbon::now();
         $durationInMinutes = $exitTime->diffInMinutes($entryTime);
-        $calculatedCost = 0; // Ubah nama variabel agar tidak bingung
-
-        $hourlyRate = $parkingSlot->tarif;
-        $firstHourCost = $hourlyRate;
-        $subsequentHourCost = $hourlyRate * 0.6;
-
-        if ($durationInMinutes <= 60) {
-            $calculatedCost = $firstHourCost;
-        } else {
-            $additionalHours = ceil(($durationInMinutes - 60) / 60);
-            $calculatedCost = $firstHourCost + ($additionalHours * $subsequentHourCost);
-        }
+        $durationInHours = $durationInMinutes / 60;
+        
+        // Use the ParkingRate model to calculate cost
+        $calculatedCost = \App\Models\ParkingRate::getRateForDuration(
+            $booking->jenis_kendaraan, 
+            $durationInHours
+        );
 
         $booking->exit_time = $exitTime;
         $booking->check_out_count += 1;
@@ -155,6 +175,7 @@ class AdminController extends Controller
         $booking->payment_status = 'paid';
         $booking->save();
 
+        // Make sure to update slot status correctly
         $parkingSlot->status = 'available';
         $parkingSlot->save();
 

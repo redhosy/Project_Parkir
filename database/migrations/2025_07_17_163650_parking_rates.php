@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('parking_rates', function (Blueprint $table) {
             $table->id();
-            $table->enum('vehicle_type', ['motor', 'mobil', 'truk']);
-            $table->decimal('first_hour', 10, 2);
-            $table->decimal('next_hour', 10, 2);
-            $table->decimal('daily_max', 10, 2)->nullable();
-            $table->text('description')->nullable();
+            $table->string('vehicle_type');
+            $table->integer('duration_start_hour');
+            $table->integer('duration_end_hour')->nullable();
+            $table->decimal('rate', 10, 2);
+            $table->boolean('is_flat_rate')->default(false);
             $table->timestamps();
         });
     }
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        Schema::dropIfExists('parking_rates');
     }
 };

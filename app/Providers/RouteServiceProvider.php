@@ -17,7 +17,17 @@ class RouteServiceProvider extends ServiceProvider
      *
      * @var string
      */
-    public const HOME = '/home'; // Anda bisa ganti ini jika perlu, misal '/admin/dashboard'
+    public const HOME = '/home';
+    
+    /**
+     * The path to redirect admins after login.
+     */
+    public const ADMIN_HOME = '/admin/dashboard';
+    
+    /**
+     * The path to redirect customers after login.
+     */
+    public const CUSTOMER_HOME = '/customer/dashboard';
 
     /**
      * Define your route model bindings, pattern filters, and other route configuration.

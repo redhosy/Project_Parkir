@@ -1,68 +1,153 @@
-<!-- Modal Edit -->
-<div class="modal fade" id="editSlotModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form id="editForm" method="POST">
-                @csrf
-                @method('PUT')
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Slot Parkir</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Kode Slot</label>
-                        <input type="text" class="form-control" name="code" id="editCode" required>
+<!-- Edit Parking Slot Modal -->
+<div id="editParkingSlotModal" tabindex="-1" aria-hidden="true" 
+    class="fixed top-0 left-0 right-0 z-50 hidden w-full p-4 overflow-x-hidden overflow-y-auto md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="relative w-full max-w-md max-h-full">
+        <!-- Modal content -->
+        <div class="relative bg-white rounded-2xl shadow-xl dark:bg-gray-800 transform transition-all">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between p-5 border-b rounded-t-2xl bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:border-gray-700">
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+                    Edit Slot Parkir <span id="edit-slot-code" class="text-gray-500 dark:text-gray-400"></span>
+                </h3>
+                <button type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="editParkingSlotModal">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+            <!-- Modal body -->
+            <div class="p-6 space-y-6">
+                <form id="editParkingSlotForm" method="POST" class="space-y-4">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" id="edit_id" name="id">
+
+                    <!-- Code (Read-only) -->
+                    <div>
+                        <label for="edit_code" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Kode Slot</label>
+                        <input type="text" id="edit_code" name="code" class="bg-gray-100 border border-gray-300 text-gray-700 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400" readonly>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipe</label>
-                        <select class="form-select" name="type" id="editType" required>
+
+                    <!-- Type -->
+                    <div>
+                        <label for="edit_type" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Jenis Kendaraan <span class="text-red-500">*</span></label>
+                        <select id="edit_type" name="type" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
                             <option value="motor">Motor</option>
                             <option value="mobil">Mobil</option>
                             <option value="truk">Truk</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tarif</label>
-                        <input type="number" class="form-control" name="tarif" id="editTarif" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" name="status" id="editStatus" required>
-                            <option value="available">Available</option>
-                            <option value="booked">Booked</option>
-                            <option value="occupied">Occupied</option>
-                            <option value="maintenance">Maintenance</option>
+
+                    <!-- Parking Rate -->
+                    <div>
+                        <label for="edit_parking_rate_id" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Tarif Parkir <span class="text-red-500">*</span></label>
+                        <select id="edit_parking_rate_id" name="parking_rate_id" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                            <option value="">Pilih Tarif Parkir</option>
+                            @foreach($groupedRates as $vehicleType => $rates)
+                                <optgroup label="{{ $vehicleType === 'motor' ? 'Motor' : ($vehicleType === 'mobil' ? 'Mobil' : 'Truk') }}">
+                                    @foreach($rates as $rate)
+                                        <option value="{{ $rate->id }}" data-vehicle-type="{{ $rate->vehicle_type }}">
+                                            @if($rate->duration_end_hour)
+                                                {{ $rate->duration_start_hour }} - {{ $rate->duration_end_hour }} jam : Rp {{ number_format($rate->rate, 0, ',', '.') }}
+                                            @elseif($rate->is_flat_rate)
+                                                ≥ {{ $rate->duration_start_hour }} jam (Tarif flat) : Rp {{ number_format($rate->rate, 0, ',', '.') }}
+                                            @else
+                                                ≥ {{ $rate->duration_start_hour }} jam : Rp {{ number_format($rate->rate, 0, ',', '.') }}
+                                            @endif
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endforeach
                         </select>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Simpan</button>
-                </div>
-            </form>
+
+                    <!-- Area -->
+                    <div>
+                        <label for="edit_area" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Area <span class="text-red-500">*</span></label>
+                        <select id="edit_area" name="area" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                            <option value="A">Area A</option>
+                            <option value="B">Area B</option>
+                            <option value="C">Area C</option>
+                        </select>
+                    </div>
+
+                    <!-- Location Description -->
+                    <div>
+                        <label for="edit_location_description" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Deskripsi Lokasi</label>
+                        <textarea id="edit_location_description" name="location_description" rows="2" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="Deskripsi opsional tentang lokasi slot"></textarea>
+                    </div>
+
+                    <!-- Status -->
+                    <div>
+                        <label for="edit_status" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Status <span class="text-red-500">*</span></label>
+                        <select id="edit_status" name="status" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                            <option value="available">Tersedia</option>
+                            <option value="booked">Dibooking</option>
+                            <option value="occupied">Terisi</option>
+                            <option value="maintenance">Pemeliharaan</option>
+                        </select>
+                    </div>
+                </form>
+
+                <!-- Error Messages -->
+                <div class="hidden error-messages p-4 mt-2 text-sm text-red-600 bg-red-100 rounded-lg"></div>
+            </div>
+            <!-- Modal footer -->
+            <div class="flex items-center justify-end p-6 space-x-2 border-t border-gray-200 rounded-b dark:border-gray-700">
+                <button type="button" class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600" data-modal-hide="editParkingSlotModal">
+                    Batal
+                </button>
+                <button type="submit" form="editParkingSlotForm" class="text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:focus:ring-blue-800 transition-all duration-200 ease-in-out transform hover:scale-105">
+                    Simpan Perubahan
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- JavaScript for form handling -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const editModal = document.getElementById('editSlotModal');
+    // Initialize the editModal with Flowbite - making sure to use Flowbite.Modal
+    const editModalEl = document.getElementById('editParkingSlotModal');
+    if (editModalEl && typeof Flowbite !== 'undefined') {
+        const editModal = new Flowbite.Modal(editModalEl, {
+            backdropClasses: 'bg-gray-900/50 dark:bg-gray-900/80 fixed inset-0 z-40',
+            onShow: () => {
+                // Ensure body overflow is hidden to prevent scrolling behind modal
+                document.body.style.overflow = 'hidden';
+                // Remove any existing backdrops to avoid stacking
+                document.querySelectorAll('[modal-backdrop]').forEach(backdrop => {
+                    backdrop.remove();
+                });
+            },
+            onHide: () => {
+                // Remove backdrop when modal is closed
+                document.querySelectorAll('[modal-backdrop]').forEach(backdrop => {
+                    backdrop.remove();
+                });
+                // Restore body scrolling
+                document.body.style.overflow = '';
+            }
+        });
+        window.editParkingSlotModal = editModal;
+    }
     
-    editModal.addEventListener('show.bs.modal', function(event) {
-        const button = event.relatedTarget;
-        const slotId = button.getAttribute('data-id');
-        const slotCode = button.getAttribute('data-code');
-        const slotType = button.getAttribute('data-type');
-        const slotTarif = button.getAttribute('data-tarif');
-        const slotStatus = button.getAttribute('data-status');
+    // Filter parking rates based on vehicle type in edit modal
+    document.getElementById('edit_type').addEventListener('change', function() {
+        const selectedVehicleType = this.value;
+        const parkingRateSelect = document.getElementById('edit_parking_rate_id');
+        const optgroups = parkingRateSelect.querySelectorAll('optgroup');
         
-        const form = document.getElementById('editForm');
-        form.action = `/parking/${slotId}`;
+        // Hide all optgroups first
+        optgroups.forEach(optgroup => {
+            optgroup.style.display = 'none';
+        });
         
-        document.getElementById('editCode').value = slotCode;
-        document.getElementById('editType').value = slotType;
-        document.getElementById('editTarif').value = slotTarif;
-        document.getElementById('editStatus').value = slotStatus;
+        // Show only the optgroup that matches the selected vehicle type
+        const selectedOptgroup = parkingRateSelect.querySelector(`optgroup[label="${selectedVehicleType === 'motor' ? 'Motor' : (selectedVehicleType === 'mobil' ? 'Mobil' : 'Truk')}"]`);
+        if (selectedOptgroup) {
+            selectedOptgroup.style.display = 'block';
+        }
     });
 });
-</script>
